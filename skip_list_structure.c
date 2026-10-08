@@ -136,9 +136,50 @@ bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_
 
 bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
 {
-    /* TODO: arreglo update[], nivel aleatorio, enlazar el nodo nuevo */
-    (void) hdr; (void) key; (void) tid;
-    return false;
+    SkipListNode *update[hdr->max_level];
+
+    SkipListNode *current = hdr->head;
+
+    for (int level = hdr->current_level - 1; level >= 0; level--)
+    {
+        while (current->forward[level] != NULL &&
+               current->forward[level]->key < key)
+        {
+            current = current->forward[level];
+        }
+
+        update[level] = current;
+    }
+    
+    if (current->forward[0] != NULL &&
+        current->forward[0]->key == key)
+    {
+        return false;
+    }
+
+    int new_level = skiplist_random_level(hdr);
+
+    if (new_level > hdr->current_level)
+    {
+        for (int level = hdr->current_level; level < new_level; level++)
+        {
+            update[level] = hdr->head;
+        }
+
+        hdr->current_level = new_level;
+    }
+
+    SkipListNode *n_node = skiplist_node_create(key, tid, new_level);
+
+    for (int level = 0; level < new_level; level++)
+    {
+        n_node->forward[level] = update[level]->forward[level];
+        update[level]->forward[level] = n_node;
+    }
+
+    hdr->length++;
+
+    return true;
 }
 
 bool skiplist_delete(SkipListHeader *hdr, int32 key)
