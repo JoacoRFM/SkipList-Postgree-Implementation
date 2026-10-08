@@ -41,7 +41,7 @@ void skiplist_destroy(SkipListHeader *hdr)
     while (hdr->head != NULL)
     {
         SkipListNode *temp = hdr->head;
-        hdr->head = hdr->head->forward[hdr->current_level];
+        hdr->head = hdr->head->forward[0];
         free(temp->forward);
         free(temp);
     }
