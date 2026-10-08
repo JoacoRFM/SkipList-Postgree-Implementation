@@ -39,16 +39,25 @@ SkipListHeader *skiplist_create(int max_level, double p)
 
 void skiplist_destroy(SkipListHeader *hdr)
 {
-    while (hdr->head != NULL)
-    {
-        SkipListNode *temp = hdr->head;
-        hdr->head = hdr->head->forward[0];
+    /* TODO (PERSONA 3): implementar liberacion completa de memoria */
 
-        free(temp->forward);
-        free(temp);
+    SkipListNode* currnet;
+    SkipListNode* next;
+
+    if (hdr == NULL) { return; }
+
+    if (hdr->head != NULL) {
+        current = hdr->head->forward[0];
+        while (current != NULL) {
+            next = current->forward[0];
+            skiplist_node_free(current);
+            current = next;
+        }
+
+        skiplist_node_free(hdr->head);
     }
 
-    free(hdr);
+    SL_FREE(hdr);
 }
 
 
@@ -109,8 +118,19 @@ SkipListHeader *skiplist_build(const int32 *keys,
                                uint64 n)
 {
     /* TODO: crear lista vacía e insertar los n pares (clave, tid) */
-    (void) keys; (void) tids; (void) n;
-    return NULL;
+    SkipListHeader* hdr = skiplist_create(SKIPLIST_MAX_LEVEL, SKIPLIST_P);
+
+    if (hdr == NULL)
+        return NULL;
+
+    for (uint64 i = 0; i < n; i++) {
+        if (!skiplist_insert(hdr, keys[i], tids[i])) {
+            skiplist_destroy(hdr);
+            return NULL;
+        }
+    }
+
+    return hdr;
 }
 
 bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_tid)
@@ -185,15 +205,92 @@ bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
 bool skiplist_delete(SkipListHeader *hdr, int32 key)
 {
     /* TODO: arreglo update[], desenlazar, liberar, bajar current_level si toca */
-    (void) hdr; (void) key;
-    return false;
+    SkipListNode* update[SKIPLIST_MAX_LEVEL];
+    SkipListNode* x;
+
+    if (hdr == NULL) { return false; }
+
+    x = hdr->head;
+    for (int i = hdr->current_level - 1; i >= 0; i--)
+    {
+        while (x->forward[i] != NULL && x->forward[i]->key < key) {
+            x = x->forward[i];
+        }
+        update[i] = x;
+    }
+
+    x = x->forward[0];
+    if (x == NULL || x->key != key) { return false; }
+
+    for (int i = 0; i < hdr->current_level; i++)
+    {
+        if (update[i]->forward[i] != x) { break; }
+        update[i]->forward[i] = x->forward[i];
+    }
+
+    skiplist_node_free(x);
+
+    while (hdr->current_level > 1 && hdr->head->forward[hdr->current_level - 1] == NULL) {
+        hdr->current_level--;
+    }
+
+    hdr->length--;
+    return true;
 }
 
 SkipListResult *skiplist_range_search(const SkipListHeader *hdr, int32 lo, int32 hi)
 {
     /* TODO: ubicar primer nodo >= lo y recorrer nivel 0 hasta pasar hi */
-    (void) hdr; (void) lo; (void) hi;
-    return NULL;
+    SkipListResult* res;
+    SkipListNode* x;
+    SkipListNode* tmp;
+    uint64 count = 0;
+    uint64 idx = 0;
+
+    if (hdr == NULL) { return NULL; }
+
+    res = SL_ALLOC(sizeof(SkipListResult));
+    if (res == NULL) { return NULL; }
+
+    res->tids = NULL;
+    res->count = 0;
+    res->capacity = 0;
+
+    if (lo > hi) { return res; }
+    x = hdr->head;
+
+    for (int i = hdr->current_level - 1; i >= 0; i--)
+    {
+        while (x->forward[i] != NULL && x->forward[i]->key < lo) {
+            x = x->forward[i];
+        }
+    }
+
+    x = x->forward[0];
+
+    tmp = x;
+    while (tmp != NULL && tmp->key <= hi) {
+        count++;
+        tmp = tmp->forward[0];
+    }
+
+    if (count == 0) { return res; }
+
+    res->tids = SL_ALLOC(sizeof(ItemPointerData) * count);
+    if (res->tids == NULL) {
+        SL_FREE(res);
+        return NULL;
+    }
+
+    res->capacity = count;
+
+    while (x != NULL && x->key <= hi) {
+        res->tids[idx++] = x->tid;
+        x = x->forward[0];
+    }
+    res->count = count;
+
+    return res;
 }
 
 /* ================= Resultados y depuración ================= */
@@ -201,7 +298,9 @@ SkipListResult *skiplist_range_search(const SkipListHeader *hdr, int32 lo, int32
 void skiplist_result_free(SkipListResult *res)
 {
     /* TODO */
-    (void) res;
+    if (res == NULL) { return; }
+    if (res->tids != NULL) { SL_FREE(res->tids); }
+    SL_FREE(res);
 }
 
 bool skiplist_validate(const SkipListHeader *hdr)
