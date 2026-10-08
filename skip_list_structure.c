@@ -14,13 +14,14 @@ SkipListHeader *skiplist_create(int max_level, double p)
     SkipListHeader *head;
     SkipListNode *nodo;
 
-    head = malloc(sizeof(SkipListHeader));
+    if (max_level <= 0 || p < 0.0 || p > 1.0)
+        return NULL;
 
-    nodo = malloc(sizeof(SkipListNode));
+    head = SL_ALLOC(sizeof(SkipListHeader));
+    nodo = SL_ALLOC(sizeof(SkipListNode));
 
     nodo->level = max_level;
-
-    nodo->forward = malloc(max_level * sizeof(SkipListNode *));
+    nodo->forward = SL_ALLOC(max_level * sizeof(SkipListNode *));
 
     for (int i = 0; i < max_level; i++)
     {
@@ -41,7 +42,7 @@ void skiplist_destroy(SkipListHeader *hdr)
 {
     /* TODO (PERSONA 3): implementar liberacion completa de memoria */
 
-    SkipListNode* currnet;
+    SkipListNode* current;
     SkipListNode* next;
 
     if (hdr == NULL) { return; }
@@ -65,13 +66,18 @@ void skiplist_destroy(SkipListHeader *hdr)
 
 SkipListNode *skiplist_node_create(int32 key, ItemPointerData tid, int level)
 {
-    SkipListNode *node = malloc(sizeof(SkipListNode));
+    SkipListNode *node;
+
+    if (level <= 0)
+        return NULL;
+
+    node = SL_ALLOC(sizeof(SkipListNode));
 
     node->key = key;
     node->tid = tid;
     node->level = level;
 
-    node->forward = malloc(level * sizeof(SkipListNode *));
+    node->forward = SL_ALLOC(level * sizeof(SkipListNode *));
 
     for (int i = 0; i < level; i++)
     {
@@ -84,13 +90,11 @@ SkipListNode *skiplist_node_create(int32 key, ItemPointerData tid, int level)
 
 void skiplist_node_free(SkipListNode *node)
 {
-    if (!node)
-    {
+    if (node == NULL)
         return;
-    }
 
-    free(node->forward);
-    free(node);
+    SL_FREE(node->forward);
+    SL_FREE(node);
 }
 
 
@@ -135,6 +139,7 @@ SkipListHeader *skiplist_build(const int32 *keys,
 
 bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_tid)
 {
+    if (hdr == NULL || hdr->head == NULL || out_tid == NULL) return false;
     SkipListNode *current = hdr->head;
     for (int level = hdr->current_level - 1; level >= 0; level--)
     {
@@ -156,6 +161,8 @@ bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_
 
 bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
 {
+    if (hdr == NULL || hdr->head == NULL) return false;
+    
     SkipListNode *update[hdr->max_level];
 
     SkipListNode *current = hdr->head;
