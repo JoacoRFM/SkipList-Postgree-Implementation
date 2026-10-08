@@ -136,11 +136,20 @@ SkipListHeader *skiplist_build(const int32 *keys,
     return hdr;
 }
 
-bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_tid)
+bool
+skiplist_search(const SkipListHeader *hdr, int32 key,
+                ItemPointerData *out_tid)
 {
-    if (hdr == NULL || hdr->head == NULL || out_tid == NULL) return false;
-    SkipListNode *current = hdr->head;
-    for (int level = hdr->current_level - 1; level >= 0; level--)
+    SkipListNode *current;
+    SkipListNode *next;
+    int level;
+
+    if (hdr == NULL || hdr->head == NULL || out_tid == NULL)
+        return false;
+
+    current = hdr->head;
+
+    for (level = hdr->current_level - 1; level >= 0; level--)
     {
         while (current->forward[level] != NULL &&
                current->forward[level]->key < key)
@@ -148,7 +157,9 @@ bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_
             current = current->forward[level];
         }
     }
-    SkipListNode *next = current->forward[0];
+
+    next = current->forward[0];
+
     if (next != NULL && next->key == key)
     {
         *out_tid = next->tid;
@@ -158,15 +169,35 @@ bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_
     return false;
 }
 
-bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
+bool
+skiplist_insert(SkipListHeader *hdr, int32 key,
+                ItemPointerData tid)
 {
-    if (hdr == NULL || hdr->head == NULL) return false;
-    
-    SkipListNode *update[hdr->max_level];
+    SkipListNode **update;
+    SkipListNode *current;
+    SkipListNode *n_node;
+    int level;
+    int new_level;
 
-    SkipListNode *current = hdr->head;
+    if (hdr == NULL || hdr->head == NULL)
+        return false;
 
-    for (int level = hdr->current_level - 1; level >= 0; level--)
+    /*
+     * Reservamos dinámicamente el arreglo update.
+     * Así evitamos un Variable Length Array (VLA).
+     */
+    update = (SkipListNode **) SL_ALLOC(
+        sizeof(SkipListNode *) * hdr->max_level
+    );
+
+    if (update == NULL)
+        return false;
+
+    current = hdr->head;
+
+    for (level = hdr->current_level - 1;
+         level >= 0;
+         level--)
     {
         while (current->forward[level] != NULL &&
                current->forward[level]->key < key)
@@ -176,18 +207,28 @@ bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
 
         update[level] = current;
     }
-    
+
+    /*
+     * Verificamos si la clave ya existe.
+     */
     if (current->forward[0] != NULL &&
         current->forward[0]->key == key)
     {
+        SL_FREE(update);
         return false;
     }
 
-    int new_level = skiplist_random_level(hdr);
+    new_level = skiplist_random_level(hdr);
 
+    /*
+     * Si el nuevo nodo tiene más niveles que los actuales,
+     * el head será el anterior en esos niveles.
+     */
     if (new_level > hdr->current_level)
     {
-        for (int level = hdr->current_level; level < new_level; level++)
+        for (level = hdr->current_level;
+             level < new_level;
+             level++)
         {
             update[level] = hdr->head;
         }
@@ -195,9 +236,18 @@ bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
         hdr->current_level = new_level;
     }
 
-    SkipListNode *n_node = skiplist_node_create(key, tid, new_level);
+    n_node = skiplist_node_create(key, tid, new_level);
 
-    for (int level = 0; level < new_level; level++)
+    if (n_node == NULL)
+    {
+        SL_FREE(update);
+        return false;
+    }
+
+    /*
+     * Insertamos el nuevo nodo en cada nivel.
+     */
+    for (level = 0; level < new_level; level++)
     {
         n_node->forward[level] = update[level]->forward[level];
         update[level]->forward[level] = n_node;
@@ -205,9 +255,13 @@ bool skiplist_insert(SkipListHeader *hdr, int32 key, ItemPointerData tid)
 
     hdr->length++;
 
+    /*
+     * update ya no es necesario.
+     */
+    SL_FREE(update);
+
     return true;
 }
-
 bool skiplist_delete(SkipListHeader *hdr, int32 key)
 {
     /* TODO: arreglo update[], desenlazar, liberar, bajar current_level si toca */
