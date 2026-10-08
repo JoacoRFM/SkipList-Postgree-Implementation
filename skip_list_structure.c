@@ -69,8 +69,10 @@ SkipListNode *skiplist_node_create(int32 key, ItemPointerData tid, int level)
 
 void skiplist_node_free(SkipListNode *node)
 {
-    /* TODO: liberar forward y luego el nodo */
-    (void) node;
+    //no se como usariamos esto , me parece que deberia ser ligeramente mas complejo
+    if(!node){return;}
+    free(node->forward);
+    free(node);
 }
 
 /* ================= Niveles ================= */
