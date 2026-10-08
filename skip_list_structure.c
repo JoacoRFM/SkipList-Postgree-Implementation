@@ -81,7 +81,7 @@ int skiplist_random_level(const SkipListHeader *hdr)
 {
     /* TODO: nivel = 1; mientras (random < p y nivel < max_level) nivel++ */
     int nivel = 1;
-    int rnd = (rand()%100)/100 ;
+    double rnd = (rand()%100)/100 ;
     while(rnd > hdr->p && nivel < hdr->max_level){
         rnd = (rand()%100)/100 ;
         nivel++;
