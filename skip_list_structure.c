@@ -38,8 +38,14 @@ SkipListHeader *skiplist_create(int max_level, double p)
 
 void skiplist_destroy(SkipListHeader *hdr)
 {
-    /* TODO: recorrer nivel 0 liberando cada nodo, luego head y header */
-    (void) hdr;
+    while (hdr->head != NULL)
+    {
+        SkipListNode *temp = hdr->head;
+        hdr->head = hdr->head->forward[0];
+        free(temp->forward);
+        free(temp);
+    }
+    free(hdr);
 }
 
 /* ================= Nodos ================= */
