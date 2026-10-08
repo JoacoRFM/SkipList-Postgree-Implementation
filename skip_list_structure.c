@@ -36,17 +36,21 @@ SkipListHeader *skiplist_create(int max_level, double p)
     return head;
 }
 
+
 void skiplist_destroy(SkipListHeader *hdr)
 {
     while (hdr->head != NULL)
     {
         SkipListNode *temp = hdr->head;
         hdr->head = hdr->head->forward[0];
+
         free(temp->forward);
         free(temp);
     }
+
     free(hdr);
 }
+
 
 /* ================= Nodos ================= */
 
@@ -57,6 +61,7 @@ SkipListNode *skiplist_node_create(int32 key, ItemPointerData tid, int level)
     node->key = key;
     node->tid = tid;
     node->level = level;
+
     node->forward = malloc(level * sizeof(SkipListNode *));
 
     for (int i = 0; i < level; i++)
@@ -67,28 +72,36 @@ SkipListNode *skiplist_node_create(int32 key, ItemPointerData tid, int level)
     return node;
 }
 
+
 void skiplist_node_free(SkipListNode *node)
 {
-    //no se como usariamos esto , me parece que deberia ser ligeramente mas complejo
-    if(!node){return;}
+    if (!node)
+    {
+        return;
+    }
+
     free(node->forward);
     free(node);
 }
+
 
 /* ================= Niveles ================= */
 
 int skiplist_random_level(const SkipListHeader *hdr)
 {
-    /* TODO: nivel = 1; mientras (random < p y nivel < max_level) nivel++ */
     int nivel = 1;
-    double rnd = (rand()%100)/100 ;
-    while(rnd > hdr->p && nivel < hdr->max_level){
-        rnd = (rand()%100)/100 ;
+    double rnd;
+
+    rnd = (double) rand() / RAND_MAX;
+
+    while (rnd < hdr->p && nivel < hdr->max_level)
+    {
         nivel++;
+        rnd = (double) rand() / RAND_MAX;
     }
+
     return nivel;
 }
-
 /* ================= Operaciones ================= */
 
 SkipListHeader *skiplist_build(const int32 *keys,
@@ -102,8 +115,22 @@ SkipListHeader *skiplist_build(const int32 *keys,
 
 bool skiplist_search(const SkipListHeader *hdr, int32 key, ItemPointerData *out_tid)
 {
-    /* TODO: bajar desde el nivel más alto avanzando mientras next->key < key */
-    (void) hdr; (void) key; (void) out_tid;
+    SkipListNode *current = hdr->head;
+    for (int level = hdr->current_level - 1; level >= 0; level--)
+    {
+        while (current->forward[level] != NULL &&
+               current->forward[level]->key < key)
+        {
+            current = current->forward[level];
+        }
+    }
+    SkipListNode *next = current->forward[0];
+    if (next != NULL && next->key == key)
+    {
+        *out_tid = next->tid;
+        return true;
+    }
+
     return false;
 }
 
