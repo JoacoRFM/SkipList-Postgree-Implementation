@@ -1,4 +1,3 @@
-/* Puente SQL <-> Skip List en memoria (una copia por backend). */
 #include "postgres.h"
 #include "fmgr.h"
 #include "executor/spi.h"
@@ -10,7 +9,7 @@
 #include "catalog/pg_type_d.h"
 #include "utils/lsyscache.h"
 #include "storage/itemptr.h"
-#include "skip_list_structure.h"
+#include "skiplist.h"
 
 PG_FUNCTION_INFO_V1(sl_build);
 PG_FUNCTION_INFO_V1(sl_search);
@@ -19,32 +18,32 @@ PG_FUNCTION_INFO_V1(sl_range);
 PG_FUNCTION_INFO_V1(sl_clear);
 PG_FUNCTION_INFO_V1(sl_count);
 
-static SkipListHeader *active_list = NULL;
-static MemoryContext list_ctx = NULL;
+static SkipListHeader *lista = NULL;
+static MemoryContext memoriaLista = NULL;
 
 static void
-ensure_list(void)
+crear_lista(void)
 {
-    MemoryContext prev;
-    if (active_list != NULL)
+    MemoryContext anterior;
+    if (lista != NULL)
         return;
-    if (list_ctx == NULL)
-        list_ctx = AllocSetContextCreate(TopMemoryContext, "skiplist_backend", ALLOCSET_DEFAULT_SIZES);
-    prev = MemoryContextSwitchTo(list_ctx);
-    active_list = skiplist_create(SKIPLIST_MAX_LEVEL, SKIPLIST_P);
-    MemoryContextSwitchTo(prev);
-    if (active_list == NULL)
+    if (memoriaLista == NULL)
+        memoriaLista = AllocSetContextCreate(TopMemoryContext, "skiplist_backend", ALLOCSET_DEFAULT_SIZES);
+    anterior = MemoryContextSwitchTo(memoriaLista);
+    lista = skiplist_create(SKIPLIST_MAX_LEVEL, SKIPLIST_P);
+    MemoryContextSwitchTo(anterior);
+    if (lista == NULL)
         ereport(ERROR, (errmsg("no se pudo crear la Skip List")));
 }
 
 Datum
 sl_clear(PG_FUNCTION_ARGS)
 {
-    active_list = NULL;
-    if (list_ctx != NULL)
+    lista = NULL;
+    if (memoriaLista != NULL)
     {
-        MemoryContextDelete(list_ctx);
-        list_ctx = NULL;
+        MemoryContextDelete(memoriaLista);
+        memoriaLista = NULL;
     }
     PG_RETURN_VOID();
 }
@@ -52,88 +51,88 @@ sl_clear(PG_FUNCTION_ARGS)
 Datum
 sl_count(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_INT64(active_list ? (int64) active_list->length : 0);
+    PG_RETURN_INT64(lista ? (int64) lista->length : 0);
 }
 
 Datum
 sl_build(PG_FUNCTION_ARGS)
 {
-    Oid relid = PG_GETARG_OID(0);
-    char *column = text_to_cstring(PG_GETARG_TEXT_PP(1));
-    char *relname = get_rel_name(relid);
-    char *nspname;
-    char *query;
-    Portal portal;
-    MemoryContext prev;
-    int attnum;
+    Oid tablaId = PG_GETARG_OID(0);
+    char *columna = text_to_cstring(PG_GETARG_TEXT_PP(1));
+    char *nombreTabla = get_rel_name(tablaId);
+    char *esquema;
+    char *consulta;
+    Portal cursor;
+    MemoryContext anterior;
+    int numColumna;
 
-    if (relname == NULL)
+    if (nombreTabla == NULL)
         ereport(ERROR, (errmsg("la relacion no existe")));
-    attnum = get_attnum(relid, column);
-    if (attnum == InvalidAttrNumber || get_atttype(relid, attnum) != INT4OID)
+    numColumna = get_attnum(tablaId, columna);
+    if (numColumna == InvalidAttrNumber || get_atttype(tablaId, numColumna) != INT4OID)
         ereport(ERROR, (errmsg("la columna debe existir y ser de tipo integer")));
-    nspname = get_namespace_name(get_rel_namespace(relid));
-    if (nspname == NULL)
+    esquema = get_namespace_name(get_rel_namespace(tablaId));
+    if (esquema == NULL)
         ereport(ERROR, (errmsg("esquema de relacion no encontrado")));
 
-    query = psprintf("SELECT %s, ctid FROM %s",
-                     quote_identifier(column),
-                     quote_qualified_identifier(nspname, relname));
+    consulta = psprintf("SELECT %s, ctid FROM %s",
+                     quote_identifier(columna),
+                     quote_qualified_identifier(esquema, nombreTabla));
 
-    /* Recrear la lista; no conserva contenido anterior. */
+    
     sl_clear(fcinfo);
-    ensure_list();
+    crear_lista();
 
     if (SPI_connect() != SPI_OK_CONNECT)
         ereport(ERROR, (errmsg("SPI_connect fallo")));
-    portal = SPI_cursor_open_with_args(NULL, query, 0, NULL, NULL, NULL, true, 0);
-    if (portal == NULL)
+    cursor = SPI_cursor_open_with_args(NULL, consulta, 0, NULL, NULL, NULL, true, 0);
+    if (cursor == NULL)
         ereport(ERROR, (errmsg("no se pudo abrir cursor SPI")));
 
     for (;;)
     {
-        uint64 i, rows;
-        SPI_cursor_fetch(portal, true, 1000);
-        rows = SPI_processed;
-        if (rows == 0)
+        uint64 i, filas;
+        SPI_cursor_fetch(cursor, true, 1000);
+        filas = SPI_processed;
+        if (filas == 0)
         {
             if (SPI_tuptable) SPI_freetuptable(SPI_tuptable);
             break;
         }
-        for (i = 0; i < rows; i++)
+        for (i = 0; i < filas; i++)
         {
-            HeapTuple tuple = SPI_tuptable->vals[i];
-            TupleDesc desc = SPI_tuptable->tupdesc;
-            bool isnull_key, isnull_tid;
-            Datum keyd = SPI_getbinval(tuple, desc, 1, &isnull_key);
-            Datum tidd = SPI_getbinval(tuple, desc, 2, &isnull_tid);
-            if (!isnull_key && !isnull_tid)
+            HeapTuple fila = SPI_tuptable->vals[i];
+            TupleDesc descripcion = SPI_tuptable->tupdesc;
+            bool claveNula, tidNulo;
+            Datum claveDato = SPI_getbinval(fila, descripcion, 1, &claveNula);
+            Datum tidDato = SPI_getbinval(fila, descripcion, 2, &tidNulo);
+            if (!claveNula && !tidNulo)
             {
-                ItemPointerData tid = *DatumGetItemPointer(tidd);
-                prev = MemoryContextSwitchTo(list_ctx);
-                if (!skiplist_insert(active_list, DatumGetInt32(keyd), tid))
+                ItemPointerData tid = *DatumGetItemPointer(tidDato);
+                anterior = MemoryContextSwitchTo(memoriaLista);
+                if (!skiplist_insert(lista, DatumGetInt32(claveDato), tid))
                     ereport(ERROR, (errmsg("fallo insertando nodo en Skip List")));
-                MemoryContextSwitchTo(prev);
+                MemoryContextSwitchTo(anterior);
             }
         }
         SPI_freetuptable(SPI_tuptable);
     }
-    SPI_cursor_close(portal);
+    SPI_cursor_close(cursor);
     SPI_finish();
-    PG_RETURN_INT64((int64) active_list->length);
+    PG_RETURN_INT64((int64) lista->length);
 }
 
 Datum
 sl_search(PG_FUNCTION_ARGS)
 {
-    ItemPointerData found;
-    ItemPointerData *output;
+    ItemPointerData encontrado;
+    ItemPointerData *salida;
     int32 key = PG_GETARG_INT32(0);
-    if (active_list == NULL || !skiplist_search(active_list, key, &found))
+    if (lista == NULL || !skiplist_search(lista, key, &encontrado))
         PG_RETURN_NULL();
-    output = (ItemPointerData *) palloc(sizeof(ItemPointerData));
-    *output = found;
-    PG_RETURN_ITEMPOINTER(output);
+    salida = (ItemPointerData *) palloc(sizeof(ItemPointerData));
+    *salida = encontrado;
+    PG_RETURN_ITEMPOINTER(salida);
 }
 
 Datum
@@ -141,38 +140,38 @@ sl_insert(PG_FUNCTION_ARGS)
 {
     int32 key = PG_GETARG_INT32(0);
     ItemPointerData tid = *PG_GETARG_ITEMPOINTER(1);
-    MemoryContext prev;
+    MemoryContext anterior;
     bool ok;
-    ensure_list();
-    prev = MemoryContextSwitchTo(list_ctx);
-    ok = skiplist_insert(active_list, key, tid);
-    MemoryContextSwitchTo(prev);
+    crear_lista();
+    anterior = MemoryContextSwitchTo(memoriaLista);
+    ok = skiplist_insert(lista, key, tid);
+    MemoryContextSwitchTo(anterior);
     PG_RETURN_BOOL(ok);
 }
 
 Datum
 sl_range(PG_FUNCTION_ARGS)
 {
-    FuncCallContext *funcctx;
-    SkipListResult *result;
+    FuncCallContext *contexto;
+    SkipListResult *resultado;
     if (SRF_IS_FIRSTCALL())
     {
-        MemoryContext oldctx;
-        funcctx = SRF_FIRSTCALL_INIT();
-        oldctx = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
-        result = active_list ? skiplist_range_search(active_list,
+        MemoryContext memoriaAnterior;
+        contexto = SRF_FIRSTCALL_INIT();
+        memoriaAnterior = MemoryContextSwitchTo(contexto->multi_call_memory_ctx);
+        resultado = lista ? skiplist_range_search(lista,
                         PG_GETARG_INT32(0), PG_GETARG_INT32(1)) : NULL;
-        funcctx->user_fctx = result;
-        funcctx->max_calls = result ? result->count : 0;
-        MemoryContextSwitchTo(oldctx);
+        contexto->user_fctx = resultado;
+        contexto->max_calls = resultado ? resultado->count : 0;
+        MemoryContextSwitchTo(memoriaAnterior);
     }
-    funcctx = SRF_PERCALL_SETUP();
-    result = (SkipListResult *) funcctx->user_fctx;
-    if (result && funcctx->call_cntr < funcctx->max_calls)
+    contexto = SRF_PERCALL_SETUP();
+    resultado = (SkipListResult *) contexto->user_fctx;
+    if (resultado && contexto->call_cntr < contexto->max_calls)
     {
         ItemPointerData *out = palloc(sizeof(ItemPointerData));
-        *out = result->tids[funcctx->call_cntr];
-        SRF_RETURN_NEXT(funcctx, ItemPointerGetDatum(out));
+        *out = resultado->tids[contexto->call_cntr];
+        SRF_RETURN_NEXT(contexto, ItemPointerGetDatum(out));
     }
-    SRF_RETURN_DONE(funcctx);
+    SRF_RETURN_DONE(contexto);
 }
