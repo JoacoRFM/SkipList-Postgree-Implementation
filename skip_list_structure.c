@@ -41,7 +41,7 @@ void skiplist_destroy(SkipListHeader *hdr)
     while (hdr->head != NULL)
     {
         SkipListNode *temp = hdr->head;
-        hdr->head = hdr->head->forward[0];
+        hdr->head = hdr->head->forward[hdr->current_level];
         free(temp->forward);
         free(temp);
     }
@@ -80,8 +80,13 @@ void skiplist_node_free(SkipListNode *node)
 int skiplist_random_level(const SkipListHeader *hdr)
 {
     /* TODO: nivel = 1; mientras (random < p y nivel < max_level) nivel++ */
-    (void) hdr;
-    return 1;
+    int nivel = 1;
+    int rnd = (rand()%100)/100 ;
+    while(rnd > hdr->p && nivel < hdr->max_level){
+        rnd = (rand()%100)/100 ;
+        nivel++;
+    }
+    return nivel;
 }
 
 /* ================= Operaciones ================= */
