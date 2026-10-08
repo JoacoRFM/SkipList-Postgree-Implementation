@@ -1,8 +1,7 @@
 /*
  * skiplist_pg.c  --  ESQUELETO (cuerpos vacíos a propósito)
  */
-#include "skiplist.h"
-
+#include "skip_list_structure.h"
 #ifndef SKIPLIST_STANDALONE
 PG_MODULE_MAGIC;
 #endif
