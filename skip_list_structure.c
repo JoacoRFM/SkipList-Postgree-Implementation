@@ -3,7 +3,7 @@
  */
 #include "skip_list_structure.h"
 #ifndef SKIPLIST_STANDALONE
-PG_MODULE_MAGIC;
+int PG_MODULE_MAGIC;
 #endif
 
 /* ================= Ciclo de vida ================= */
