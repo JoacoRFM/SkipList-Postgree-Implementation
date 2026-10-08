@@ -1,0 +1,4 @@
+comment = 'Skip List en memoria integrada con PostgreSQL'
+default_version = '1.0'
+module_pathname = '$libdir/skiplist'
+relocatable = true
