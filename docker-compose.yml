@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  postgres-dev:
+    build: .
+    container_name: postgres_skiplist_dev
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=skiplist_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # Sincroniza la carpeta actual (tu código local) con la carpeta /app del contenedor
+      - ./:/app
