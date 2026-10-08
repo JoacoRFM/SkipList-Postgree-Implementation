@@ -10,7 +10,7 @@
 #include "catalog/pg_type_d.h"
 #include "utils/lsyscache.h"
 #include "storage/itemptr.h"
-#include "skiplist.h"
+#include "skip_list_structure.h"
 
 PG_FUNCTION_INFO_V1(sl_build);
 PG_FUNCTION_INFO_V1(sl_search);
