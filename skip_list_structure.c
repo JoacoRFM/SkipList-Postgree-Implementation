@@ -52,9 +52,19 @@ void skiplist_destroy(SkipListHeader *hdr)
 
 SkipListNode *skiplist_node_create(int32 key, ItemPointerData tid, int level)
 {
-    /* TODO: reservar nodo + arreglo forward[level], inicializar en NULL */
-    (void) key; (void) tid; (void) level;
-    return NULL;
+    SkipListNode *node = malloc(sizeof(SkipListNode));
+
+    node->key = key;
+    node->tid = tid;
+    node->level = level;
+    node->forward = malloc(level * sizeof(SkipListNode *));
+
+    for (int i = 0; i < level; i++)
+    {
+        node->forward[i] = NULL;
+    }
+
+    return node;
 }
 
 void skiplist_node_free(SkipListNode *node)
