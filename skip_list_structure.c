@@ -11,10 +11,29 @@ PG_MODULE_MAGIC;
 
 SkipListHeader *skiplist_create(int max_level, double p)
 {
-    /* TODO: reservar header, crear nodo head con max_level punteros a NULL,
-     *       current_level = 1, length = 0 */
-    (void) max_level; (void) p;
-    return NULL;
+    SkipListHeader *head;
+    SkipListNode *nodo;
+
+    head = malloc(sizeof(SkipListHeader));
+
+    nodo = malloc(sizeof(SkipListNode));
+
+    nodo->level = max_level;
+
+    nodo->forward = malloc(max_level * sizeof(SkipListNode *));
+
+    for (int i = 0; i < max_level; i++)
+    {
+        nodo->forward[i] = NULL;
+    }
+
+    head->head = nodo;
+    head->max_level = max_level;
+    head->current_level = 1;
+    head->p = p;
+    head->length = 0;
+
+    return head;
 }
 
 void skiplist_destroy(SkipListHeader *hdr)
