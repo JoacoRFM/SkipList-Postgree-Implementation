@@ -2,8 +2,11 @@
  * skiplist_pg.c  --  ESQUELETO (cuerpos vacíos a propósito)
  */
 #include "skip_list_structure.h"
+#include "postgres.h"
+#include "fmgr.h"
+
 #ifndef SKIPLIST_STANDALONE
-int PG_MODULE_MAGIC;
+PG_MODULE_MAGIC;
 #endif
 
 /* ================= Ciclo de vida ================= */
