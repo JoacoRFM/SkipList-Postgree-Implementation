@@ -312,16 +312,76 @@ void skiplist_result_free(SkipListResult *res)
 
 bool skiplist_validate(const SkipListHeader *hdr)
 {
-    /* TODO: verificar orden ascendente en cada nivel y que cada nivel
-     *       superior sea subconjunto del inferior */
-    (void) hdr;
+    SkipListNode *current;
+    SkipListNode *lower;
+    int level;
+
+    if (hdr == NULL || hdr->head == NULL)
+    {
+        return false;
+    }
+
+    if (hdr->current_level < 1 ||
+        hdr->current_level > hdr->max_level) { return false; }
+
+    /*Verificar que el nivel 0 esté ordenado */
+    current = hdr->head->forward[0];
+    while (current != NULL && current->forward[0] != NULL)
+    {
+        if (current->key >= current->forward[0]->key) { return false; }
+        current = current->forward[0];
+    }
+
+    /*Verificar que los nodos de niveles superiores también existan en el nivel inmediatamente inferior */
+    for (level = 1; level < hdr->current_level; level++)
+    {
+        current = hdr->head->forward[level];
+        while (current != NULL)
+        {
+            bool found = false;
+            lower = hdr->head->forward[level - 1];
+            while (lower != NULL)
+            {
+                if (lower == current)
+                {
+                    found = true;
+                    break;
+                }
+                lower = lower->forward[level - 1];
+            }
+            if (!found) { return false; }
+            current = current->forward[level];
+        }
+    }
     return true;
 }
 
 void skiplist_debug_print(const SkipListHeader *hdr)
 {
-    /* TODO: imprimir cada nivel (útil para pruebas de la Fase 3) */
-    (void) hdr;
+    SkipListNode *current;
+    int level;
+    if (hdr == NULL || hdr->head == NULL)
+    {
+        printf("Skip List: NULL\n");
+        return;
+    }
+    printf("Skip List\n");
+    printf("length = %llu, current_level = %d, max_level = %d\n",
+           (unsigned long long)hdr->length,
+           hdr->current_level,
+           hdr->max_level);
+
+    for (level = hdr->current_level - 1; level >= 0; level--)
+    {
+        printf("Nivel %d: HEAD", level);
+        current = hdr->head->forward[level];
+        while (current != NULL)
+        {
+            printf(" -> %d", current->key);
+            current = current->forward[level];
+        }
+        printf("\n");
+    }
 }
 
 /* ================= FASE 4: Integración PostgreSQL =================
